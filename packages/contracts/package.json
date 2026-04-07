@@ -1,0 +1,51 @@
+{
+  "name": "@anby/contracts",
+  "version": "0.1.1",
+  "description": "Canonical TypeScript contracts (entities, events, notifications, search) for the Anby Platform",
+  "keywords": [
+    "anby",
+    "anby-platform",
+    "contracts",
+    "types",
+    "sdk"
+  ],
+  "license": "MIT",
+  "author": "ANBY",
+  "homepage": "https://github.com/bravebits-labs/anby-platform-packages#readme",
+  "bugs": {
+    "url": "https://github.com/bravebits-labs/anby-platform-packages/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bravebits-labs/anby-platform-packages.git",
+    "directory": "packages/contracts"
+  },
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/cjs/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.cjs.json && tsc -p tsconfig.esm.json && node ../fixup-dual.mjs",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}

@@ -1,0 +1,9 @@
+node_modules
+*.tsbuildinfo
+tsconfig*.json
+.turbo
+.DS_Store
+src/**/*.test.ts
+src/**/*.spec.ts
+coverage
+package-lock.json

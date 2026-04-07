@@ -1,0 +1,20 @@
+{
+  "name": "anby-platform-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Root workspace for the publishable @anby/* SDK packages. Services in sibling folders are independent and not part of this workspace.",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "npm run build && changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.0"
+  }
+}
