@@ -1,6 +1,6 @@
 {
   "name": "@anby/platform-sdk",
-  "version": "0.1.1",
+  "version": "0.6.0",
   "description": "Runtime SDK for building services and apps that plug into the Anby Platform — auth, events, config",
   "keywords": [
     "anby",
@@ -29,6 +29,11 @@
       "types": "./dist/cjs/index.d.ts",
       "import": "./dist/esm/index.js",
       "require": "./dist/cjs/index.js"
+    },
+    "./vite": {
+      "types": "./dist/cjs/vite/index.d.ts",
+      "import": "./dist/esm/vite/index.js",
+      "require": "./dist/cjs/vite/index.js"
     }
   },
   "files": [
@@ -58,5 +63,13 @@
     "ioredis-mock": "^8.13.1",
     "typescript": "^5.5.0",
     "vitest": "^3.0.0"
+  },
+  "peerDependencies": {
+    "vite": "^5.0.0 || ^6.0.0 || ^7.0.0"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    }
   }
 }

@@ -4,6 +4,7 @@ import { validateCommand } from './validate.js';
 import { publishCommand } from './publish.js';
 import { installCommand } from './install.js';
 import { listCommand } from './list.js';
+import { codegenCommand } from './codegen.js';
 
 /**
  * All app-lifecycle commands live under `anby app <verb>` so we can add
@@ -35,6 +36,8 @@ export function registerAppCommands(program: Command) {
     .option('--public-url <url>', 'Public URL where this service is reachable')
     .option('--changelog <text>', 'Optional changelog note attached to this version')
     .option('--featured', 'Flag the app as featured in the setup wizard')
+    .option('--save-to <path>', 'Write the assembled ANBY_APP_TOKEN to this file (e.g. .env.local)')
+    .option('--platform-url <url>', 'Override the platform base URL embedded in the token (defaults to registry URL with /registry stripped)')
     .action(publishCommand);
 
   app
@@ -51,4 +54,12 @@ export function registerAppCommands(program: Command) {
     .option('--tenant <tenantId>', 'Show installed apps for this tenant')
     .option('--registry <url>', 'Registry base URL', process.env.REGISTRY_URL || 'http://localhost:3003')
     .action(listCommand);
+
+  app
+    .command('codegen')
+    .description('Generate TypeScript types from anby-app.manifest.json (event names, etc)')
+    .option('--manifest <path>', 'Path to manifest file', './anby-app.manifest.json')
+    .option('--out <path>', 'Output path for generated types', './.anby/types.d.ts')
+    .option('--watch', 'Watch the manifest and regenerate on change')
+    .action(codegenCommand);
 }

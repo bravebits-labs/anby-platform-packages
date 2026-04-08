@@ -67,6 +67,16 @@ export interface PublishAppResult {
     status: string;
   };
   version: { appId: string; version: string };
+  /**
+   * Ed25519 private key (PEM) returned ONCE on first publish. Used to
+   * assemble the ANBY_APP_TOKEN connection string for the developer to
+   * paste into their app's env. Null on subsequent publishes — the
+   * registry never re-returns the key.
+   *
+   * The CLI uses this to print the assembled token. Programmatic
+   * callers should treat this field as a secret and avoid logging it.
+   */
+  privateKey: string | null;
 }
 
 async function loadManifest(path: string): Promise<AppManifest> {
@@ -79,6 +89,25 @@ async function loadManifest(path: string): Promise<AppManifest> {
     );
   }
   return parsed;
+}
+
+/**
+ * Public helper: load the manifest from disk and return it with all
+ * `provides.entities[].schema` paths resolved to inlined JSON content.
+ *
+ * Used both internally by `publishAppFromManifest` and by services that
+ * want to expose the wire-format manifest over HTTP (e.g. a Remix route
+ * at `/_anby/manifest`) so the Marketplace submit form can fetch it
+ * without requiring the publisher to paste anything by hand.
+ */
+export async function getInlinedManifest(
+  opts: { manifestPath?: string } = {},
+): Promise<AppManifest> {
+  const manifestPath = resolve(
+    opts.manifestPath ?? join(process.cwd(), 'anby-app.manifest.json'),
+  );
+  const raw = await loadManifest(manifestPath);
+  return inlineEntitySchemas(raw, manifestPath);
 }
 
 /**
@@ -163,20 +192,30 @@ export async function publishAppFromManifest(
     const manifestPath = resolve(
       opts.manifestPath ?? join(process.cwd(), 'anby-app.manifest.json'),
     );
-    const rawManifest = await loadManifest(manifestPath);
     // CR-4: inline schema content before sending. Manifest on disk uses
     // relative paths for DX; wire format sends the actual JSON object.
-    const manifest = await inlineEntitySchemas(rawManifest, manifestPath);
+    const manifest = await getInlinedManifest({ manifestPath });
 
     const publicUrl =
       opts.publicUrl ??
       process.env.APP_PUBLIC_URL ??
       `http://localhost:${manifest.runtime.port}`;
 
-    const registryUrl =
-      opts.registryUrl ??
-      process.env.REGISTRY_URL ??
-      'http://localhost:3003';
+    // PLAN-app-bootstrap-phase2 PR4: prefer the registry URL discovered
+    // by bootstrapFromToken. Falls back to the explicit option, then env,
+    // then localhost. The discovered value is the registry HOST root
+    // (no /registry suffix), so this code can append /registry/apps below.
+    let registryUrl = opts.registryUrl ?? process.env.REGISTRY_URL;
+    if (!registryUrl) {
+      try {
+        // Lazy require to avoid a circular import at module load time.
+        const { getDiscoveredRegistryBaseUrl } = await import('../bootstrap/index.js');
+        registryUrl = await getDiscoveredRegistryBaseUrl();
+      } catch {
+        // bootstrap not started yet — fall back to localhost dev default.
+        registryUrl = 'http://localhost:3003';
+      }
+    }
 
     const internalApiSecret =
       opts.internalApiSecret ?? process.env.INTERNAL_API_SECRET ?? '';
