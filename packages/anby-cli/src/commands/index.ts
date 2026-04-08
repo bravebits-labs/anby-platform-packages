@@ -10,9 +10,24 @@ import { codegenCommand } from './codegen.js';
  * All app-lifecycle commands live under `anby app <verb>` so we can add
  * other command namespaces later (`anby tenant`, `anby events`, etc.)
  * without reshuffling.
+ *
+ * `init` is also exposed as a top-level `anby init` alias because that's
+ * the command publishers reach for first and the namespace prefix would
+ * be a needless papercut on the very first interaction with the CLI.
  */
 export function registerAppCommands(program: Command) {
   const app = program.command('app').description('Manage Anby apps');
+
+  // Top-level alias: `anby init` → same as `anby app init`.
+  program
+    .command('init')
+    .description(
+      'Scaffold an Anby app: writes manifest, patches vite.config, updates .gitignore',
+    )
+    .option('--id <id>', 'Reverse-domain app id, e.g. com.bravebits.hello')
+    .option('--name <name>', 'Human-readable app name')
+    .option('--port <port>', 'Runtime port', '3099')
+    .action(initCommand);
 
   app
     .command('init')
