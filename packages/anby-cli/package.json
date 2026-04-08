@@ -1,6 +1,6 @@
 {
   "name": "@anby/cli",
-  "version": "0.1.1",
+  "version": "0.7.0",
   "description": "Anby Platform CLI — scaffold, validate, publish, and install Anby apps",
   "keywords": [
     "anby",
@@ -43,7 +43,7 @@
   },
   "dependencies": {
     "@anby/manifest-schema": "^0.1.1",
-    "@anby/platform-sdk": "^0.6.0",
+    "@anby/platform-sdk": "^0.7.0",
     "commander": "^12.1.0",
     "kleur": "^4.1.5"
   },
