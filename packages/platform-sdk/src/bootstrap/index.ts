@@ -280,7 +280,13 @@ async function doBootstrap(opts: BootstrapOptions): Promise<void> {
   configureAuth({ jwtPublicKey: authPublicKeyPem });
   configurePlatform({
     appId: token.appId,
-    registryUrl: discovery.endpoints.registryUrl,
+    // Normalize to the registry HOST root (no /registry suffix). The
+    // discovery wire contract returns registryUrl WITH /registry appended
+    // for back-compat, but every in-process consumer of
+    // getPlatformConfig().registryUrl (resolver, token, handler) builds
+    // its own /registry/... path on top, so storing the suffixed form
+    // produces /registry/registry/... 404s. Same strip getDiscoveredRegistryBaseUrl uses.
+    registryUrl: discovery.endpoints.registryUrl.replace(/\/registry\/?$/, ''),
   });
   configureAppIdentity({
     appId: token.appId,
