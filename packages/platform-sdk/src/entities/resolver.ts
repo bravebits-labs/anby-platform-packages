@@ -62,6 +62,14 @@ async function doFetch(
     // Not modified — keep current map, just bump fetchedAt.
     const cur = _tenantMaps.get(tenantId);
     if (cur) return { ...cur, fetchedAt: Date.now() };
+    // 304 with no cached map is a contract violation: we only send
+    // if-none-match when we already have a map, so the server should
+    // never reply 304 to a cold caller. Surface a clear message instead
+    // of falling through to the generic !res.ok branch which would say
+    // "fetch failed (304)" and look like a real failure.
+    throw new Error(
+      `registry returned 304 Not Modified for tenant ${tenantId} but no cached entity-map exists — likely a stale ETag was sent or the cache was cleared mid-flight`,
+    );
   }
   if (!res.ok) {
     throw new Error(

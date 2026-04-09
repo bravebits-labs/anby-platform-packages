@@ -89,6 +89,10 @@ export async function getEntityClient<TRow = unknown>(
     try {
       res = await doRequest();
     } catch (err) {
+      // Auth failures from getScopedToken propagate as ScopedTokenError —
+      // those are NOT unreachability and must surface their real cause so
+      // operators don't spend hours chasing a phantom network problem.
+      if (err instanceof ScopedTokenError) throw err;
       throw new EntityProviderUnreachableError(
         `${entityName}@${version}`,
         provider.baseUrl,
@@ -102,6 +106,7 @@ export async function getEntityClient<TRow = unknown>(
       try {
         res = await doRequest();
       } catch (err) {
+        if (err instanceof ScopedTokenError) throw err;
         throw new EntityProviderUnreachableError(
           `${entityName}@${version}`,
           provider.baseUrl,
