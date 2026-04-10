@@ -5,6 +5,8 @@ import { publishCommand } from './publish.js';
 import { installCommand } from './install.js';
 import { listCommand } from './list.js';
 import { codegenCommand } from './codegen.js';
+import { loginCommand } from './login.js';
+import { logoutCommand } from './logout.js';
 
 /**
  * All app-lifecycle commands live under `anby app <verb>` so we can add
@@ -16,25 +18,31 @@ import { codegenCommand } from './codegen.js';
  * be a needless papercut on the very first interaction with the CLI.
  */
 export function registerAppCommands(program: Command) {
+  // ── Top-level auth commands ──────────────────────────────────────────
+  program
+    .command('login')
+    .description('Authenticate with the Anby platform via Google OAuth')
+    .option('--auth-url <url>', '[dev] Override auth service URL')
+    .action(loginCommand);
+
+  program
+    .command('logout')
+    .description('Remove stored CLI credentials')
+    .action(logoutCommand);
+
   const app = program.command('app').description('Manage Anby apps');
 
   // Top-level alias: `anby init` → same as `anby app init`.
   program
     .command('init')
-    .description(
-      'Scaffold an Anby app: writes manifest, patches vite.config, updates .gitignore',
-    )
-    .option('--id <id>', 'Reverse-domain app id, e.g. com.bravebits.hello')
-    .option('--name <name>', 'Human-readable app name')
-    .option('--port <port>', 'Runtime port', '3099')
+    .description('Scaffold and register an Anby app (interactive)')
+    .option('--registry-url <url>', '[dev] Override registry URL')
     .action(initCommand);
 
   app
     .command('init')
-    .description('Scaffold a new anby-app.manifest.json in the current directory')
-    .option('--id <id>', 'Reverse-domain app id, e.g. com.bravebits.hello')
-    .option('--name <name>', 'Human-readable app name')
-    .option('--port <port>', 'Runtime port', '3099')
+    .description('Scaffold and register an Anby app (interactive)')
+    .option('--registry-url <url>', '[dev] Override registry URL')
     .action(initCommand);
 
   app

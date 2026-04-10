@@ -16,6 +16,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { validateManifest, type AppManifest } from '@anby/manifest-schema';
 import { signHmac } from '../auth/index.js';
 import { schemaChecksum } from '../entities/schema.js';
+import { getAppIdentity, signAppRequest } from '../entities/identity.js';
 
 export interface PublishAppOptions {
   /**
@@ -217,16 +218,7 @@ export async function publishAppFromManifest(
       }
     }
 
-    const internalApiSecret =
-      opts.internalApiSecret ?? process.env.INTERNAL_API_SECRET ?? '';
-    if (!internalApiSecret) {
-      throw new Error(
-        'INTERNAL_API_SECRET is not set — cannot sign publish request',
-      );
-    }
-
     const submittedBy = opts.submittedBy ?? manifest.id;
-    const signature = signHmac(submittedBy, internalApiSecret);
 
     const body = {
       id: manifest.id,
@@ -243,14 +235,50 @@ export async function publishAppFromManifest(
       manifest,
     };
 
+    const bodyJson = JSON.stringify(body);
+
+    // Prefer Ed25519 app identity signing (no INTERNAL_API_SECRET needed).
+    // Falls back to HMAC for first-time publish (before app has an identity).
+    let authHeaders: Record<string, string>;
+    let identity: { appId: string; privateKeyPem: string } | null = null;
+    try {
+      identity = getAppIdentity();
+    } catch {
+      // Not configured — fall back to HMAC
+    }
+
+    if (identity && identity.appId === manifest.id) {
+      // Ed25519 path — re-publishing own app
+      const signed = signAppRequest({
+        identity,
+        tenantId: '',
+        body: bodyJson,
+      });
+      authHeaders = { ...signed };
+    } else {
+      // HMAC path — first-time publish or cross-app publish
+      const internalApiSecret =
+        opts.internalApiSecret ?? process.env.INTERNAL_API_SECRET ?? '';
+      if (!internalApiSecret) {
+        throw new Error(
+          'INTERNAL_API_SECRET is not set and no app identity configured — cannot sign publish request. ' +
+            'Run `anby login && anby init` to register the app first.',
+        );
+      }
+      const signature = signHmac(submittedBy, internalApiSecret);
+      authHeaders = {
+        'x-internal-user': submittedBy,
+        'x-internal-signature': signature,
+      };
+    }
+
     const res = await fetch(`${registryUrl}/registry/apps`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-internal-user': submittedBy,
-        'x-internal-signature': signature,
+        ...authHeaders,
       },
-      body: JSON.stringify(body),
+      body: bodyJson,
     });
 
     if (!res.ok) {
