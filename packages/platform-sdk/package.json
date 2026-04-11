@@ -1,6 +1,6 @@
 {
   "name": "@anby/platform-sdk",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Runtime SDK for building services and apps that plug into the Anby Platform — auth, events, config",
   "keywords": [
     "anby",
