@@ -371,6 +371,8 @@ export function anbyVitePlugin(opts: AnbyVitePluginOptions = {}): Plugin {
         if (existsSync(absDir)) server.watcher.add(absDir);
       }
 
+      let scanTimer: ReturnType<typeof setTimeout> | null = null;
+
       server.watcher.on('change', (changedPath) => {
         const abs = resolve(changedPath);
         if (abs === resolvedManifest) {
@@ -378,8 +380,12 @@ export function anbyVitePlugin(opts: AnbyVitePluginOptions = {}): Plugin {
           generateTypes();
           void generateManifestArtifact();
         } else if (changedPath.match(/\.(ts|tsx|js|jsx)$/)) {
-          // Source file changed — re-scan → update manifest → regenerate
-          regenerateAll();
+          // Debounce source scans — many files change at once during HMR
+          if (scanTimer) clearTimeout(scanTimer);
+          scanTimer = setTimeout(() => {
+            scanTimer = null;
+            regenerateAll();
+          }, 2000);
         }
       });
     },
