@@ -5,7 +5,7 @@ import kleur from 'kleur';
 import { getStoredAuth, getEmailDomain } from '../lib/auth-store.js';
 import { assembleToken } from '../lib/token.js';
 
-const DEFAULT_REGISTRY_URL = 'https://registry.anby.ai';
+const DEFAULT_REGISTRY_URL = 'https://apps.anby.ai';
 
 interface InitOptions {
   /** Hidden override for platform devs */
