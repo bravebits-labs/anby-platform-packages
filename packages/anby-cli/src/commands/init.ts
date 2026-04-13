@@ -621,16 +621,30 @@ async function registerAndWriteToken(opts: {
     return;
   }
 
-  // Check if .env already has a non-empty ANBY_APP_TOKEN
+  // Check if .env already has a valid ANBY_APP_TOKEN for THIS registry
   const envPath = resolve('.env');
   try {
     const envContent = await readFile(envPath, 'utf-8');
     const match = envContent.match(/^ANBY_APP_TOKEN=(.*)$/m);
     if (match && match[1].trim()) {
-      console.log(
-        kleur.dim('• .env already contains ANBY_APP_TOKEN — skipping registration'),
-      );
-      return;
+      // Decode token to check platformUrl
+      try {
+        const b64 = match[1].trim().replace('anby_v1_', '');
+        const payload = JSON.parse(Buffer.from(b64, 'base64url').toString());
+        const tokenPlatform = (payload.platformUrl || '').replace(/\/+$/, '');
+        const targetPlatform = opts.registryBase.replace(/\/+$/, '');
+        if (tokenPlatform === targetPlatform) {
+          console.log(
+            kleur.dim('• .env already contains ANBY_APP_TOKEN for this registry — skipping registration'),
+          );
+          return;
+        }
+        console.log(
+          kleur.dim(`• Token in .env points to ${tokenPlatform}, re-registering for ${targetPlatform}`),
+        );
+      } catch {
+        // Can't parse — re-register
+      }
     }
   } catch {
     // .env doesn't exist — fine, we'll create it
