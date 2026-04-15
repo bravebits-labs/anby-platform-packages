@@ -20,7 +20,7 @@
  *   - Missing / malformed tenant in claims → 401 (no 'default' bleed).
  */
 
-import jwt from 'jsonwebtoken';
+import crypto from 'node:crypto';
 import type {
   EntityHandlerConfig,
   EntityHandlerContext,
@@ -90,18 +90,10 @@ export class RegistryPublicKeyVerifier implements TokenVerifier {
     if (!this.publicKey || !this.algo) {
       throw new Error('RegistryPublicKeyVerifier not initialized');
     }
-    // jsonwebtoken types don't list 'EdDSA' but the library supports it
-    // via node crypto when the public key is Ed25519. We pass the algo as
-    // unknown to bypass the restricted union.
-    const algorithms: jwt.Algorithm[] =
-      this.algo === 'HS256'
-        ? ['HS256']
-        : (['EdDSA' as unknown as jwt.Algorithm, 'RS256']);
-    const decoded = jwt.verify(token, this.publicKey, {
-      algorithms,
-      issuer: 'anby-registry',
-    });
-    return assertAndReturnClaims(decoded);
+    // Verify via Node crypto directly — jsonwebtoken/jws don't support
+    // Ed25519 key parsing, so EdDSA tokens fail with "Unknown key type
+    // 'ed25519'". Node crypto.verify handles Ed25519 natively.
+    return verifyJwtNative(token, this.publicKey, this.algo);
   }
 }
 
@@ -113,11 +105,73 @@ export class SharedSecretVerifier implements TokenVerifier {
   constructor(private readonly secret: string) {}
 
   verify(token: string): ScopedTokenClaims {
-    const decoded = jwt.verify(token, this.secret, {
-      algorithms: ['HS256'],
-      issuer: 'anby-registry',
-    });
-    return assertAndReturnClaims(decoded);
+    return verifyJwtNative(token, this.secret, 'HS256');
+  }
+}
+
+function verifyJwtNative(
+  token: string,
+  keyMaterial: string,
+  expectedAlgo: 'EdDSA' | 'RS256' | 'HS256',
+): ScopedTokenClaims {
+  const parts = token.split('.');
+  if (parts.length !== 3) throw new Error('malformed JWT');
+  const [h64, p64, s64] = parts;
+  const header = safeJsonParse(base64urlDecode(h64).toString('utf8'));
+  const payload = safeJsonParse(base64urlDecode(p64).toString('utf8'));
+  const signature = base64urlDecode(s64);
+  const signingInput = Buffer.from(`${h64}.${p64}`);
+
+  if (typeof header.alg !== 'string') throw new Error('missing alg');
+  // Only accept the algo the verifier was initialized with, to prevent
+  // algorithm-confusion attacks.
+  if (header.alg !== expectedAlgo) {
+    throw new Error(`algorithm mismatch: expected ${expectedAlgo}, got ${header.alg}`);
+  }
+
+  let ok = false;
+  if (header.alg === 'EdDSA') {
+    const pubKey = crypto.createPublicKey(keyMaterial);
+    ok = crypto.verify(null, signingInput, pubKey, signature);
+  } else if (header.alg === 'RS256') {
+    const pubKey = crypto.createPublicKey(keyMaterial);
+    ok = crypto.verify('sha256', signingInput, pubKey, signature);
+  } else if (header.alg === 'HS256') {
+    const mac = crypto
+      .createHmac('sha256', keyMaterial)
+      .update(signingInput)
+      .digest();
+    ok = signature.length === mac.length && crypto.timingSafeEqual(mac, signature);
+  } else {
+    throw new Error(`unsupported algorithm: ${header.alg}`);
+  }
+  if (!ok) throw new Error('signature verification failed');
+
+  // Standard claim checks: issuer + expiry + not-before.
+  const now = Math.floor(Date.now() / 1000);
+  if (payload.iss !== 'anby-registry') {
+    throw new Error('invalid issuer');
+  }
+  if (typeof payload.exp === 'number' && payload.exp < now) {
+    throw new Error('token expired');
+  }
+  if (typeof payload.nbf === 'number' && payload.nbf > now) {
+    throw new Error('token not yet valid');
+  }
+  return assertAndReturnClaims(payload);
+}
+
+function base64urlDecode(s: string): Buffer {
+  return Buffer.from(s, 'base64url');
+}
+
+function safeJsonParse(s: string): Record<string, unknown> {
+  try {
+    const v = JSON.parse(s);
+    if (!v || typeof v !== 'object') throw new Error('non-object');
+    return v as Record<string, unknown>;
+  } catch {
+    throw new Error('malformed JWT segment');
   }
 }
 

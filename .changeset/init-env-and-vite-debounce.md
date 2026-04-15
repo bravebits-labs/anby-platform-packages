@@ -10,3 +10,4 @@
 - cli: default registry URL changed from `registry.anby.ai` to `apps.anby.ai`.
 - cli: `anby init` now validates existing `ANBY_APP_TOKEN` against the target registry — re-registers when the token's `platformUrl` doesn't match, instead of blindly skipping.
 - platform-sdk: debounce the Vite watcher's source re-scan by 2s so bulk file changes during HMR trigger a single manifest regeneration instead of one per file.
+- platform-sdk: fix Ed25519 JWT verification in `RegistryPublicKeyVerifier` / `SharedSecretVerifier`. The `jsonwebtoken`/`jws` dependency can't parse Ed25519 keys (`"Unknown key type 'ed25519'"`), causing all EdDSA registry tokens to fail verification. Replaced with a native `node:crypto` JWT verifier that handles EdDSA, RS256, and HS256 directly, enforces the configured algorithm (prevents algo-confusion), and validates `iss`/`exp`/`nbf`.
