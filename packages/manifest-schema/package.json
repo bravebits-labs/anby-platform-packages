@@ -1,6 +1,6 @@
 {
   "name": "@anby/manifest-schema",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "description": "JSON Schema, TypeScript types, and runtime validator for the Anby Platform app manifest",
   "keywords": [
     "anby",

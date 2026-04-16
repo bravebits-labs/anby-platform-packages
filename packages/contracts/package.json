@@ -1,6 +1,6 @@
 {
   "name": "@anby/contracts",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "description": "Canonical TypeScript contracts (entities, events, notifications, search) for the Anby Platform",
   "keywords": [
     "anby",
