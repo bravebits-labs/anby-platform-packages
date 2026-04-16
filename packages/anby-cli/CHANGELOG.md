@@ -1,5 +1,17 @@
 # @anby/cli
 
+## 1.0.0
+
+### Major Changes
+
+- 1c82c24: Add frontend.pages[] with stable id + resolveManifestPages()
+
+### Patch Changes
+
+- Updated dependencies [1c82c24]
+  - @anby/manifest-schema@1.0.0
+  - @anby/platform-sdk@1.0.0
+
 ## 0.9.0
 
 ### Minor Changes
