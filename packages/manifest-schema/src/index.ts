@@ -20,7 +20,23 @@ export interface AppManifest {
   };
   frontend: {
     type: 'iframe' | 'module-federation';
-    routes: Array<{
+    /**
+     * First-class page definitions. Each `id` MUST be stable across versions
+     * because tenant per-page access settings are keyed by `id`. New apps
+     * should always use `pages` over `routes`.
+     */
+    pages?: Array<{
+      id: string;
+      path: string;
+      label: string;
+      icon?: string;
+      description?: string;
+    }>;
+    /**
+     * Legacy routes. When `pages` is absent, the platform derives page ids
+     * from the route path slug. Prefer declaring `pages` explicitly.
+     */
+    routes?: Array<{
       path: string;
       label: string;
       icon?: string;
@@ -82,4 +98,60 @@ export function validateManifest(manifest: unknown): { valid: boolean; errors: s
   if (valid) return { valid: true, errors: [] };
   const errors = (validateFn.errors || []).map(e => `${e.instancePath} ${e.message}`);
   return { valid: false, errors };
+}
+
+export interface ResolvedPage {
+  id: string;
+  path: string;
+  label: string;
+  icon?: string;
+  description?: string;
+  /** True when the id was auto-derived from a legacy `routes[]` entry. */
+  derived: boolean;
+}
+
+/**
+ * Resolve pages from a manifest, normalising the legacy `routes` shape into
+ * the `pages` shape. Callers should always use this instead of reading
+ * `frontend.pages` / `frontend.routes` directly so legacy apps keep working.
+ */
+export function resolveManifestPages(manifest: AppManifest): ResolvedPage[] {
+  const fe = manifest.frontend;
+  if (fe.pages && fe.pages.length > 0) {
+    return fe.pages.map(p => ({
+      id: p.id,
+      path: p.path,
+      label: p.label,
+      icon: p.icon,
+      description: p.description,
+      derived: false,
+    }));
+  }
+  const seen = new Set<string>();
+  return (fe.routes ?? []).map(r => {
+    let id = deriveLegacyPageId(r.path);
+    // Ensure uniqueness within a manifest when multiple routes collapse to
+    // the same slug (e.g. "/" and "/index" both → "root").
+    let suffix = 2;
+    while (seen.has(id)) id = `${deriveLegacyPageId(r.path)}-${suffix++}`;
+    seen.add(id);
+    return {
+      id,
+      path: r.path,
+      label: r.label,
+      icon: r.icon,
+      derived: true,
+    };
+  });
+}
+
+function deriveLegacyPageId(path: string): string {
+  const slug = path
+    .replace(/^\/+|\/+$/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  if (!slug) return 'root';
+  // Schema pattern requires leading letter.
+  return /^[a-z]/.test(slug) ? slug : `p-${slug}`;
 }

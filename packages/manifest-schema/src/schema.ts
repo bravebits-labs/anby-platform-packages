@@ -28,11 +28,32 @@ export const schema = {
     },
     frontend: {
       type: 'object',
-      required: ['type', 'routes'],
+      required: ['type'],
       properties: {
         type: { type: 'string', enum: ['iframe', 'module-federation'] },
+        pages: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['id', 'path', 'label'],
+            properties: {
+              id: {
+                type: 'string',
+                pattern: '^[a-z][a-z0-9-]*$',
+                description:
+                  'Stable page identifier. MUST NOT change across versions — tenant per-page access settings are keyed by this id.',
+              },
+              path: { type: 'string' },
+              label: { type: 'string' },
+              icon: { type: 'string' },
+              description: { type: 'string', maxLength: 300 },
+            },
+          },
+        },
         routes: {
           type: 'array',
+          description:
+            'Legacy. Prefer `pages`. When only `routes` is provided, platform derives page ids from the path slug.',
           items: {
             type: 'object',
             required: ['path', 'label'],
@@ -43,10 +64,10 @@ export const schema = {
               adminOnly: { type: 'boolean' },
             },
           },
-          minItems: 1,
         },
         navPosition: { type: 'string', enum: ['sidebar', 'hidden'], default: 'sidebar' },
       },
+      anyOf: [{ required: ['pages'] }, { required: ['routes'] }],
     },
     provides: {
       type: 'object',
