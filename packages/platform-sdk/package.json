@@ -1,6 +1,6 @@
 {
   "name": "@anby/platform-sdk",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Runtime SDK for building services and apps that plug into the Anby Platform — auth, events, config",
   "keywords": [
     "anby",
@@ -52,8 +52,8 @@
     "test": "vitest"
   },
   "dependencies": {
-    "@anby/contracts": "^1.0.0",
-    "@anby/manifest-schema": "^1.0.0",
+    "@anby/contracts": "^1.1.0",
+    "@anby/manifest-schema": "^1.1.0",
     "ajv": "^8.18.0",
     "ioredis": "^5.10.1",
     "jsonwebtoken": "^9.0.0"
