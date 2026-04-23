@@ -62,12 +62,18 @@ export {
   requestToDispatch,
   dispatchResponseToResponse,
   RegistryPublicKeyVerifier,
+  MultiIssuerVerifier,
   SharedSecretVerifier,
   type EntityHandlerRegistration,
   type TokenVerifier,
   type DispatchRequest,
   type DispatchResponse,
 } from './handler.js';
+
+export {
+  createAppVerifier,
+  type CreateAppVerifierOptions,
+} from './create-verifier.js';
 
 export {
   InMemoryEntityCache,

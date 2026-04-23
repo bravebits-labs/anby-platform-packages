@@ -50,13 +50,25 @@ export interface TokenVerifier {
   verify(token: string): ScopedTokenClaims;
 }
 
+type SupportedAlgo = 'EdDSA' | 'RS256' | 'HS256';
+
+interface IssuerKey {
+  publicKey: string;
+  algo: SupportedAlgo;
+}
+
+const REGISTRY_ISSUER = 'anby-registry';
+
 /**
  * Registry-public-key verifier. Fetches /registry/entity-token/public-key
  * at boot and verifies every scoped JWT with it. Cached in memory.
+ *
+ * Single-issuer (registry only). For accepting tokens from service-app
+ * issuers (e.g. god-brain self-signing feed-pull requests), use
+ * MultiIssuerVerifier or createAppVerifier({ acceptIssuers: [...] }).
  */
 export class RegistryPublicKeyVerifier implements TokenVerifier {
-  private publicKey: string | null = null;
-  private algo: 'EdDSA' | 'RS256' | 'HS256' | null = null;
+  private key: IssuerKey | null = null;
 
   constructor(
     private readonly registryUrl: string,
@@ -64,55 +76,139 @@ export class RegistryPublicKeyVerifier implements TokenVerifier {
   ) {}
 
   async init(): Promise<void> {
-    const res = await this.fetchImpl(
-      `${this.registryUrl}/registry/entity-token/public-key`,
-    );
-    if (!res.ok) {
-      throw new Error(
-        `unable to fetch registry token public key (${res.status})`,
-      );
-    }
-    const json = (await res.json()) as { publicKey: string; algo?: string };
-    this.publicKey = json.publicKey;
-    // Honor the algo advertised by the registry. In dev mode the registry
-    // signs with HS256 using a shared secret; in production it signs with
-    // EdDSA/RS256 using an asymmetric keypair. Defaulting to the asymmetric
-    // set would reject HS256 tokens with "invalid algorithm".
-    if (json.algo === 'HS256' || json.algo === 'RS256' || json.algo === 'EdDSA') {
-      this.algo = json.algo;
-    } else {
-      // Unknown / missing — fall back to the asymmetric set for safety.
-      this.algo = 'RS256';
-    }
+    this.key = await fetchRegistryEntityKey(this.registryUrl, this.fetchImpl);
   }
 
   verify(token: string): ScopedTokenClaims {
-    if (!this.publicKey || !this.algo) {
+    if (!this.key) {
       throw new Error('RegistryPublicKeyVerifier not initialized');
     }
-    // Verify via Node crypto directly — jsonwebtoken/jws don't support
-    // Ed25519 key parsing, so EdDSA tokens fail with "Unknown key type
-    // 'ed25519'". Node crypto.verify handles Ed25519 natively.
-    return verifyJwtNative(token, this.publicKey, this.algo);
+    return verifyJwtNative(token, [REGISTRY_ISSUER], (iss) => {
+      if (iss !== REGISTRY_ISSUER) {
+        throw new Error(`invalid issuer: ${iss}`);
+      }
+      return this.key!;
+    });
   }
 }
 
 /**
- * Shared-secret verifier, for tests and local dev. Uses HS256 with the
- * secret passed in. Do NOT use in production.
+ * Multi-issuer verifier. Accepts tokens from any issuer in `acceptIssuers`,
+ * fetching each issuer's public key from the registry at init time.
+ *
+ * Issuer key resolution:
+ *   - 'anby-registry'         → /registry/entity-token/public-key
+ *   - '<service-appId>'       → /registry/services/{appId}/public-key
+ *
+ * Use this when an app needs to verify both registry-minted scoped tokens
+ * AND tokens self-signed by other service apps (e.g. god-brain calling
+ * /_anby/god-brain/feed with `iss = vn.bravebits.god-brain`).
+ */
+export class MultiIssuerVerifier implements TokenVerifier {
+  private keys: Map<string, IssuerKey> = new Map();
+
+  constructor(
+    private readonly registryUrl: string,
+    private readonly acceptIssuers: string[],
+    private readonly fetchImpl: typeof fetch = fetch,
+  ) {
+    if (acceptIssuers.length === 0) {
+      throw new Error('MultiIssuerVerifier requires at least one acceptIssuer');
+    }
+  }
+
+  async init(): Promise<void> {
+    for (const iss of this.acceptIssuers) {
+      const key =
+        iss === REGISTRY_ISSUER
+          ? await fetchRegistryEntityKey(this.registryUrl, this.fetchImpl)
+          : await fetchServicePublicKey(this.registryUrl, iss, this.fetchImpl);
+      this.keys.set(iss, key);
+    }
+  }
+
+  verify(token: string): ScopedTokenClaims {
+    if (this.keys.size === 0) {
+      throw new Error('MultiIssuerVerifier not initialized');
+    }
+    return verifyJwtNative(token, this.acceptIssuers, (iss) => {
+      const key = this.keys.get(iss);
+      if (!key) {
+        throw new Error(`issuer not in allowlist: ${iss}`);
+      }
+      return key;
+    });
+  }
+}
+
+/**
+ * Shared-secret verifier, for tests only.
+ *
+ * @deprecated Apps should use `createAppVerifier()` from
+ *   '@anby/platform-sdk/entities'. Production deployments require the
+ *   registry to have a real Ed25519/RSA keypair (`ENTITY_TOKEN_PRIVATE_KEY`).
+ *   This class will be removed in v2.0.
  */
 export class SharedSecretVerifier implements TokenVerifier {
   constructor(private readonly secret: string) {}
 
   verify(token: string): ScopedTokenClaims {
-    return verifyJwtNative(token, this.secret, 'HS256');
+    return verifyJwtNative(token, [REGISTRY_ISSUER], () => ({
+      publicKey: this.secret,
+      algo: 'HS256',
+    }));
   }
+}
+
+async function fetchRegistryEntityKey(
+  registryUrl: string,
+  fetchImpl: typeof fetch,
+): Promise<IssuerKey> {
+  const res = await fetchImpl(`${registryUrl}/registry/entity-token/public-key`);
+  if (!res.ok) {
+    throw new Error(`unable to fetch registry token public key (${res.status})`);
+  }
+  const json = (await res.json()) as { publicKey: string; algo?: string };
+  return {
+    publicKey: json.publicKey,
+    algo: normalizeAlgo(json.algo),
+  };
+}
+
+async function fetchServicePublicKey(
+  registryUrl: string,
+  appId: string,
+  fetchImpl: typeof fetch,
+): Promise<IssuerKey> {
+  const res = await fetchImpl(
+    `${registryUrl}/registry/services/${encodeURIComponent(appId)}/public-key`,
+  );
+  if (!res.ok) {
+    throw new Error(
+      `unable to fetch service public key for ${appId} (${res.status})`,
+    );
+  }
+  const json = (await res.json()) as { publicKey: string; algo?: string };
+  return {
+    publicKey: json.publicKey,
+    // Service-app keypairs are Ed25519 (see identity.ts generateAppKeyPair).
+    // Honor advertised algo when present, default to EdDSA otherwise.
+    algo: normalizeAlgo(json.algo, 'EdDSA'),
+  };
+}
+
+function normalizeAlgo(
+  algo: string | undefined,
+  fallback: SupportedAlgo = 'RS256',
+): SupportedAlgo {
+  if (algo === 'HS256' || algo === 'RS256' || algo === 'EdDSA') return algo;
+  return fallback;
 }
 
 function verifyJwtNative(
   token: string,
-  keyMaterial: string,
-  expectedAlgo: 'EdDSA' | 'RS256' | 'HS256',
+  acceptIssuers: string[],
+  resolveKey: (iss: string) => IssuerKey,
 ): ScopedTokenClaims {
   const parts = token.split('.');
   if (parts.length !== 3) throw new Error('malformed JWT');
@@ -123,22 +219,33 @@ function verifyJwtNative(
   const signingInput = Buffer.from(`${h64}.${p64}`);
 
   if (typeof header.alg !== 'string') throw new Error('missing alg');
-  // Only accept the algo the verifier was initialized with, to prevent
+
+  // Resolve key by issuer BEFORE signature check — different issuers may
+  // use different algorithms, so we need to know which key/algo applies.
+  if (typeof payload.iss !== 'string' || !payload.iss) {
+    throw new Error('missing issuer claim');
+  }
+  if (!acceptIssuers.includes(payload.iss)) {
+    throw new Error(`invalid issuer: ${payload.iss}`);
+  }
+  const key = resolveKey(payload.iss);
+
+  // Only accept the algo the issuer's key was registered with, to prevent
   // algorithm-confusion attacks.
-  if (header.alg !== expectedAlgo) {
-    throw new Error(`algorithm mismatch: expected ${expectedAlgo}, got ${header.alg}`);
+  if (header.alg !== key.algo) {
+    throw new Error(`algorithm mismatch: expected ${key.algo}, got ${header.alg}`);
   }
 
   let ok = false;
   if (header.alg === 'EdDSA') {
-    const pubKey = crypto.createPublicKey(keyMaterial);
+    const pubKey = crypto.createPublicKey(key.publicKey);
     ok = crypto.verify(null, signingInput, pubKey, signature);
   } else if (header.alg === 'RS256') {
-    const pubKey = crypto.createPublicKey(keyMaterial);
+    const pubKey = crypto.createPublicKey(key.publicKey);
     ok = crypto.verify('sha256', signingInput, pubKey, signature);
   } else if (header.alg === 'HS256') {
     const mac = crypto
-      .createHmac('sha256', keyMaterial)
+      .createHmac('sha256', key.publicKey)
       .update(signingInput)
       .digest();
     ok = signature.length === mac.length && crypto.timingSafeEqual(mac, signature);
@@ -147,11 +254,8 @@ function verifyJwtNative(
   }
   if (!ok) throw new Error('signature verification failed');
 
-  // Standard claim checks: issuer + expiry + not-before.
+  // Standard claim checks: expiry + not-before.
   const now = Math.floor(Date.now() / 1000);
-  if (payload.iss !== 'anby-registry') {
-    throw new Error('invalid issuer');
-  }
   if (typeof payload.exp === 'number' && payload.exp < now) {
     throw new Error('token expired');
   }

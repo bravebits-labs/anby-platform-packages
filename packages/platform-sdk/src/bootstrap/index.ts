@@ -333,6 +333,15 @@ async function doBootstrap(opts: BootstrapOptions): Promise<void> {
   // 5. Schedule background refresh at 80% of TTL.
   const refreshInMs = Math.max(60_000, discovery.cacheTtlSeconds * 1000 * 0.8);
   scheduleRefresh(opts, refreshInMs);
+
+  // 6. Deprecation hint: apps no longer need INTERNAL_API_SECRET.
+  // App-side auth runs entirely on ANBY_APP_TOKEN. Warn (don't throw) so
+  // legacy envs keep booting while devs clean them up.
+  if (process.env.INTERNAL_API_SECRET) {
+    console.warn(
+      '[anby-sdk] INTERNAL_API_SECRET detected in app environment but no longer used by the SDK — safe to remove from .env. App auth runs entirely on ANBY_APP_TOKEN.',
+    );
+  }
 }
 
 /**

@@ -69,3 +69,11 @@ export {
 // Entity sharing layer (Wave 1)
 // ---------------------------------------------------------------------------
 export * from './entities/index.js';
+
+// ---------------------------------------------------------------------------
+// Service-app token signing (caller side, e.g. god-brain → app feed)
+// ---------------------------------------------------------------------------
+export {
+  signServiceToken,
+  type SignServiceTokenOptions,
+} from './services/sign.js';

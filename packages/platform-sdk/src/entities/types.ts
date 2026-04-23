@@ -51,9 +51,17 @@ export interface EntityMapResponse {
   etag: string;
 }
 
-/** Claims embedded in a scoped service token (JWT). */
+/** Claims embedded in a scoped service token (JWT).
+ *
+ * `iss` is the issuer's appId. Two flavors in practice:
+ *   - `'anby-registry'` — registry-minted scoped tokens (entity sharing, etc).
+ *   - `'<service-appId>'` — service-app self-signed tokens (e.g. god-brain
+ *     calling app feed endpoints with its own keypair). The verifier checks
+ *     the iss is in its allowlist and verifies signature with that issuer's
+ *     public key.
+ */
 export interface ScopedTokenClaims {
-  iss: 'anby-registry';
+  iss: string;
   sub: string; // callerAppId (derived from verified key signature, NOT body)
   tenantId: string;
   scope: string; // e.g. "entity.read"
