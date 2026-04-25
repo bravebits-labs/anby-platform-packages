@@ -148,14 +148,15 @@ describe('billing SDK', () => {
       expect(headers['idempotency-key']).toMatch(/^[a-f0-9]{64}$/);
 
       const body = JSON.parse(call.init.body as string);
+      // sourceService intentionally omitted — server reads it from HMAC identity (B3).
       expect(body).toMatchObject({
         workspaceId: WS,
         amount: 5,
         jobId: 'meeting-summary:abc',
-        sourceService: 'meeting',
         actorUserId: USER,
         metadata: { meetingId: 'm1' },
       });
+      expect(body.sourceService).toBeUndefined();
     });
   });
 

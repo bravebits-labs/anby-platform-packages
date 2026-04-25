@@ -158,9 +158,9 @@ export async function debitCredits(request: DebitRequest): Promise<DebitResult> 
     );
   }
   const req = parsed.data;
+  // Server mandates Idempotency-Key header (H2). Always derive one.
   const idempotencyKey =
-    req.idempotencyKey ??
-    (req.jobId ? deriveIdempotencyKey(req.jobId, req.sourceService) : undefined);
+    req.idempotencyKey ?? deriveIdempotencyKey(req.jobId, req.sourceService);
 
   const res = await signedFetch('/internal/billing/debits', {
     method: 'POST',
@@ -168,7 +168,7 @@ export async function debitCredits(request: DebitRequest): Promise<DebitResult> 
       workspaceId: req.workspaceId,
       amount: req.amount,
       jobId: req.jobId,
-      sourceService: req.sourceService,
+      // sourceService intentionally omitted — server reads it from HMAC identity (B3).
       actorUserId: req.actorUserId,
       metadata: req.metadata ?? {},
     },
@@ -217,7 +217,7 @@ export async function refundCredits(request: RefundRequest): Promise<RefundResul
       workspaceId: req.workspaceId,
       refundForJobId: req.refundForJobId,
       reason: req.reason,
-      sourceService: req.sourceService,
+      // sourceService intentionally omitted — server reads it from HMAC identity (B3).
       actorUserId: req.actorUserId,
       metadata: req.metadata ?? {},
     },
