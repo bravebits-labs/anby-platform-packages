@@ -1,5 +1,18 @@
 # @anby/cli
 
+## 1.3.0
+
+### Minor Changes
+
+- Linked version bump only — kept in lockstep with `@anby/manifest-schema` 1.3.0 (per-locale page descriptions).
+
+### Patch Changes
+
+- Updated dependencies
+  - @anby/manifest-schema@1.3.0
+  - @anby/platform-sdk@1.3.0
+
+
 ## 1.2.0
 
 ### Minor Changes

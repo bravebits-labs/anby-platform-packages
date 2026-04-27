@@ -1,5 +1,31 @@
 # @anby/manifest-schema
 
+## 1.3.0
+
+### Minor Changes
+
+- Per-locale page descriptions via `description_<locale>`.
+
+  Mirrors the `label_<locale>` pattern shipped in 1.2.0. Apps can declare locale-specific page descriptions alongside the default `description`:
+
+  ```json
+  {
+    "id": "okr-map",
+    "label": "OKR Map",
+    "label_vi": "Bản đồ OKR",
+    "description": "Org-wide OKR map — objectives & key results",
+    "description_en": "Org-wide OKR map — objectives & key results",
+    "description_vi": "Bản đồ OKR toàn tổ chức — objectives & key results"
+  }
+  ```
+
+  Schema additions:
+  - `frontend.pages[].patternProperties` extended with `^description_[a-z]{2}$` (max 300 chars per locale).
+  - `ResolvedPage` interface gains `descriptions: Record<string, string>` populated from `description_xx` fields on both `pages[]` and legacy `routes[]`.
+  - `resolveManifestPages()` extracts the per-locale descriptions into the new map.
+
+  Backwards compatible: apps without `description_xx` keep working — `descriptions` is just an empty object. Consumers should pick `descriptions[currentLocale] ?? description`.
+
 ## 1.2.0
 
 ### Minor Changes

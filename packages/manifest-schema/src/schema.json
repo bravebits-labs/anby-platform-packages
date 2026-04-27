@@ -43,10 +43,15 @@
                 "description": "Default sidebar label. Used when no locale-specific label matches."
               },
               "icon": { "type": "string" },
-              "description": { "type": "string", "maxLength": 300 }
+              "description": {
+                "type": "string",
+                "maxLength": 300,
+                "description": "Default sidebar description. Used when no locale-specific description matches."
+              }
             },
             "patternProperties": {
-              "^label_[a-z]{2}$": { "type": "string" }
+              "^label_[a-z]{2}$": { "type": "string" },
+              "^description_[a-z]{2}$": { "type": "string", "maxLength": 300 }
             }
           }
         },

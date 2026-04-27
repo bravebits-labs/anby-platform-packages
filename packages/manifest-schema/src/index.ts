@@ -31,14 +31,16 @@ export interface AppManifest {
       /** Default sidebar label, used when no locale-specific label is declared. */
       label: string;
       icon?: string;
+      /** Default sidebar description, used when no locale-specific description is declared. */
       description?: string;
       /**
        * Per-locale labels. Keys are 2-letter ISO locale codes
        * (e.g. `label_en`, `label_vi`). When the user's locale matches one,
        * the platform shows that label in the sidebar; otherwise it falls back
-       * to `label`.
+       * to `label`. Same convention applies to `description_en`,
+       * `description_vi`, etc.
        */
-      [labelKey: `label_${string}`]: string | undefined;
+      [localizedKey: `label_${string}` | `description_${string}`]: string | undefined;
     }>;
     /**
      * Legacy routes. When `pages` is absent, the platform derives page ids
@@ -119,22 +121,32 @@ export interface ResolvedPage {
   labels: Record<string, string>;
   icon?: string;
   description?: string;
+  /**
+   * Locale → description map extracted from manifest fields like
+   * `description_en`, `description_vi`. Empty when the manifest declared
+   * no localized descriptions.
+   */
+  descriptions: Record<string, string>;
   /** True when the id was auto-derived from a legacy `routes[]` entry. */
   derived: boolean;
 }
 
-const LABEL_LOCALE_RE = /^label_([a-z]{2})$/;
-
-function extractLocaleLabels(page: Record<string, unknown>): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const [key, value] of Object.entries(page)) {
-    const m = LABEL_LOCALE_RE.exec(key);
-    if (m && typeof value === 'string' && value.trim()) {
-      out[m[1]] = value;
+function makeLocaleExtractor(prefix: string) {
+  const re = new RegExp(`^${prefix}_([a-z]{2})$`);
+  return (page: Record<string, unknown>): Record<string, string> => {
+    const out: Record<string, string> = {};
+    for (const [key, value] of Object.entries(page)) {
+      const m = re.exec(key);
+      if (m && typeof value === 'string' && value.trim()) {
+        out[m[1]] = value;
+      }
     }
-  }
-  return out;
+    return out;
+  };
 }
+
+const extractLocaleLabels = makeLocaleExtractor('label');
+const extractLocaleDescriptions = makeLocaleExtractor('description');
 
 /**
  * Resolve pages from a manifest, normalising the legacy `routes` shape into
@@ -144,15 +156,19 @@ function extractLocaleLabels(page: Record<string, unknown>): Record<string, stri
 export function resolveManifestPages(manifest: AppManifest): ResolvedPage[] {
   const fe = manifest.frontend;
   if (fe.pages && fe.pages.length > 0) {
-    return fe.pages.map(p => ({
-      id: p.id,
-      path: p.path,
-      label: p.label,
-      labels: extractLocaleLabels(p as unknown as Record<string, unknown>),
-      icon: p.icon,
-      description: p.description,
-      derived: false,
-    }));
+    return fe.pages.map(p => {
+      const raw = p as unknown as Record<string, unknown>;
+      return {
+        id: p.id,
+        path: p.path,
+        label: p.label,
+        labels: extractLocaleLabels(raw),
+        icon: p.icon,
+        description: p.description,
+        descriptions: extractLocaleDescriptions(raw),
+        derived: false,
+      };
+    });
   }
   const seen = new Set<string>();
   return (fe.routes ?? []).map(r => {
@@ -162,12 +178,14 @@ export function resolveManifestPages(manifest: AppManifest): ResolvedPage[] {
     let suffix = 2;
     while (seen.has(id)) id = `${deriveLegacyPageId(r.path)}-${suffix++}`;
     seen.add(id);
+    const raw = r as unknown as Record<string, unknown>;
     return {
       id,
       path: r.path,
       label: r.label,
-      labels: extractLocaleLabels(r as unknown as Record<string, unknown>),
+      labels: extractLocaleLabels(raw),
       icon: r.icon,
+      descriptions: extractLocaleDescriptions(raw),
       derived: true,
     };
   });

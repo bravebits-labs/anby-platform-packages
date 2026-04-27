@@ -1,5 +1,12 @@
 # @anby/contracts
 
+## 1.3.0
+
+### Minor Changes
+
+- Linked version bump only — kept in lockstep with `@anby/manifest-schema` 1.3.0 (per-locale page descriptions).
+
+
 ## 1.2.0
 
 ### Minor Changes
