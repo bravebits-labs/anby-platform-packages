@@ -28,9 +28,17 @@ export interface AppManifest {
     pages?: Array<{
       id: string;
       path: string;
+      /** Default sidebar label, used when no locale-specific label is declared. */
       label: string;
       icon?: string;
       description?: string;
+      /**
+       * Per-locale labels. Keys are 2-letter ISO locale codes
+       * (e.g. `label_en`, `label_vi`). When the user's locale matches one,
+       * the platform shows that label in the sidebar; otherwise it falls back
+       * to `label`.
+       */
+      [labelKey: `label_${string}`]: string | undefined;
     }>;
     /**
      * Legacy routes. When `pages` is absent, the platform derives page ids
@@ -104,10 +112,28 @@ export interface ResolvedPage {
   id: string;
   path: string;
   label: string;
+  /**
+   * Locale → label map extracted from manifest fields like `label_en`,
+   * `label_vi`. Empty when the manifest declared no localized labels.
+   */
+  labels: Record<string, string>;
   icon?: string;
   description?: string;
   /** True when the id was auto-derived from a legacy `routes[]` entry. */
   derived: boolean;
+}
+
+const LABEL_LOCALE_RE = /^label_([a-z]{2})$/;
+
+function extractLocaleLabels(page: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(page)) {
+    const m = LABEL_LOCALE_RE.exec(key);
+    if (m && typeof value === 'string' && value.trim()) {
+      out[m[1]] = value;
+    }
+  }
+  return out;
 }
 
 /**
@@ -122,6 +148,7 @@ export function resolveManifestPages(manifest: AppManifest): ResolvedPage[] {
       id: p.id,
       path: p.path,
       label: p.label,
+      labels: extractLocaleLabels(p as unknown as Record<string, unknown>),
       icon: p.icon,
       description: p.description,
       derived: false,
@@ -139,6 +166,7 @@ export function resolveManifestPages(manifest: AppManifest): ResolvedPage[] {
       id,
       path: r.path,
       label: r.label,
+      labels: extractLocaleLabels(r as unknown as Record<string, unknown>),
       icon: r.icon,
       derived: true,
     };
