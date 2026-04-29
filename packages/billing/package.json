@@ -1,6 +1,6 @@
 {
   "name": "@anby/billing",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Anby Billing SDK — debit, credit, balance queries against anby-billing-service. HMAC-signed service-to-service calls.",
   "keywords": [
     "anby",
