@@ -38,9 +38,20 @@
                 "description": "Stable page identifier. MUST NOT change across versions — tenant per-page access settings are keyed by this id."
               },
               "path": { "type": "string" },
-              "label": { "type": "string" },
+              "label": {
+                "type": "string",
+                "description": "Default sidebar label. Used when no locale-specific label matches."
+              },
               "icon": { "type": "string" },
-              "description": { "type": "string", "maxLength": 300 }
+              "description": {
+                "type": "string",
+                "maxLength": 300,
+                "description": "Default sidebar description. Used when no locale-specific description matches."
+              }
+            },
+            "patternProperties": {
+              "^label_[a-z]{2}$": { "type": "string" },
+              "^description_[a-z]{2}$": { "type": "string", "maxLength": 300 }
             }
           }
         },

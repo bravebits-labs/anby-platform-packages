@@ -44,9 +44,24 @@ export const schema = {
                   'Stable page identifier. MUST NOT change across versions — tenant per-page access settings are keyed by this id.',
               },
               path: { type: 'string' },
-              label: { type: 'string' },
+              label: {
+                type: 'string',
+                description: 'Default sidebar label. Used when no locale-specific label matches.',
+              },
               icon: { type: 'string' },
-              description: { type: 'string', maxLength: 300 },
+              description: {
+                type: 'string',
+                maxLength: 300,
+                description: 'Default sidebar description. Used when no locale-specific description matches.',
+              },
+            },
+            patternProperties: {
+              // Per-locale labels: `label_en`, `label_vi`, etc. Two-letter ISO
+              // codes; the platform falls back to `label` when the user's
+              // locale is not declared. Same convention applies to
+              // `description_en`, `description_vi`, etc.
+              '^label_[a-z]{2}$': { type: 'string' },
+              '^description_[a-z]{2}$': { type: 'string', maxLength: 300 },
             },
           },
         },
