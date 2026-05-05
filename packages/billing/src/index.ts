@@ -18,6 +18,8 @@ export type {
   BucketPrimary,
 } from './types.js';
 
+export { isWorkspaceId, workspaceIdSchema } from './types.js';
+
 export {
   BillingError,
   BillingConfigurationError,
