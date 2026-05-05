@@ -15,6 +15,25 @@ export const SourceServiceSchema = z.enum([
 export type SourceService = z.infer<typeof SourceServiceSchema>;
 
 /**
+ * Anby platform workspace identifier. Accepts either:
+ *   - RFC-4122 UUID (legacy / system-generated)
+ *   - Prisma CUID (current — emitted by tenant-service `Tenant.id @default(cuid())`)
+ *
+ * Mirrors `anby-billing-service/src/lib/workspace-id.ts` predicate so SDK-side
+ * validation matches server-side acceptance. Capped at 128 chars (DB column width).
+ */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const PRISMA_CUID_RE = /^c[a-z0-9]{20,40}$/;
+
+export function isWorkspaceId(value: string): boolean {
+  return value.length <= 128 && (UUID_RE.test(value) || PRISMA_CUID_RE.test(value));
+}
+
+export const workspaceIdSchema = z
+  .string()
+  .refine(isWorkspaceId, { message: 'workspaceId must be a UUID or platform tenant CUID' });
+
+/**
  * Bucket from which AC was primarily debited (for reporting / refund logic).
  */
 export type BucketPrimary = 'subscription' | 'topup' | 'mixed';
@@ -26,7 +45,7 @@ export type BucketPrimary = 'subscription' | 'topup' | 'mixed';
  * Idempotency-Key header from the jobId — you can override via `idempotencyKey`.
  */
 export const DebitRequestSchema = z.object({
-  workspaceId: z.string().uuid(),
+  workspaceId: workspaceIdSchema,
   amount: z
     .number()
     .int('AC amounts must be whole integers — fractional AC is not supported')
@@ -63,7 +82,7 @@ export interface DebitResult {
  * three (prevents cross-workspace refund forgery).
  */
 export const RefundRequestSchema = z.object({
-  workspaceId: z.string().uuid(),
+  workspaceId: workspaceIdSchema,
   refundForJobId: z.string().min(1).max(255),
   reason: z.string().min(1).max(500),
   sourceService: SourceServiceSchema,

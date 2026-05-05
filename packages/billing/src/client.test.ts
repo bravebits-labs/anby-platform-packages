@@ -8,6 +8,7 @@ import {
   getBalance,
   refundCredits,
 } from './client.js';
+import { isWorkspaceId, workspaceIdSchema } from './types.js';
 import {
   BillingConfigurationError,
   BillingServiceUnavailableError,
@@ -285,6 +286,61 @@ describe('billing SDK', () => {
   describe('configuration guard', () => {
     it('throws BillingConfigurationError when SDK not configured', async () => {
       await expect(getBalance(WS)).rejects.toBeInstanceOf(BillingConfigurationError);
+    });
+  });
+
+  describe('workspaceId acceptance (mirrors billing-service workspace-id.ts)', () => {
+    it('accepts RFC-4122 UUID', () => {
+      expect(isWorkspaceId('11111111-2222-3333-4444-555555555555')).toBe(true);
+      expect(workspaceIdSchema.safeParse('11111111-2222-3333-4444-555555555555').success).toBe(true);
+    });
+
+    it('accepts Prisma CUID (current platform tenant id format)', () => {
+      const cuid = 'clx1n3z2x000007l8gj0vb6t9';
+      expect(isWorkspaceId(cuid)).toBe(true);
+      expect(workspaceIdSchema.safeParse(cuid).success).toBe(true);
+    });
+
+    it('rejects strings that are neither UUID nor CUID', () => {
+      expect(isWorkspaceId('default')).toBe(false);
+      expect(isWorkspaceId('')).toBe(false);
+      expect(isWorkspaceId('not-a-real-id')).toBe(false);
+      expect(workspaceIdSchema.safeParse('default').success).toBe(false);
+    });
+
+    it('rejects values exceeding 128 chars (DB column width)', () => {
+      const tooLong = 'c' + 'a'.repeat(140);
+      expect(isWorkspaceId(tooLong)).toBe(false);
+    });
+
+    it('debitCredits no longer rejects CUID workspace ids at SDK boundary', async () => {
+      const fetchImpl = mockFetch({
+        status: 200,
+        body: {
+          ledgerEntryId: 'le_1',
+          amountDebited: 3,
+          amountFromSubscription: 3,
+          amountFromTopup: 0,
+          bucketPrimary: 'subscription',
+          balanceSubscriptionAfter: 297,
+          balanceTopupAfter: 0,
+          totalBalanceAfter: 297,
+        },
+      });
+      configureBilling({
+        baseUrl: BASE_URL,
+        hmacSecret: HMAC_SECRET,
+        serviceName: 'meeting',
+        fetch: fetchImpl,
+      });
+      await expect(
+        debitCredits({
+          workspaceId: 'clx1n3z2x000007l8gj0vb6t9',
+          amount: 3,
+          jobId: 'meeting-summary:m_1',
+          sourceService: 'meeting',
+        }),
+      ).resolves.toMatchObject({ amountDebited: 3 });
     });
   });
 });
