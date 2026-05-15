@@ -6,8 +6,6 @@ export {
   signHmac,
   authenticateRequest,
   requireAuth,
-  isPlaceholderTenant,
-  INVALID_TENANT_PLACEHOLDERS,
   JWT_ISSUER,
   JWT_AUDIENCE,
   TYP_USER,
@@ -16,6 +14,8 @@ export {
   type AuthUser,
   type AuthConfig,
 } from './auth/index.js';
+
+export { isPlaceholderTenant, INVALID_TENANT_PLACEHOLDERS } from './tenant/index.js';
 
 export {
   bootstrapFromToken,
