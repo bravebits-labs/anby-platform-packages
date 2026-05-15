@@ -1,5 +1,33 @@
 # @anby/manifest-schema
 
+## 1.4.0
+
+### Minor Changes
+
+- 00b2263: Add isPlaceholderTenant helper + ./auth subpath export.
+
+  New auth helpers — isPlaceholderTenant(tenantId) returns true for known
+  non-real tenant sentinels ('default', '**legacy**', 'dev-tenant'). The set
+  is also exported as INVALID_TENANT_PLACEHOLDERS. Backend write paths and
+  frontend auth bootstraps can use this to reject placeholder tenants and
+  route users to the create-org flow before they hit a 400 from
+  require-valid-tenant middleware.
+
+  New ./auth subpath export — browser apps can now do
+  import { ... } from '@anby/platform-sdk/auth' instead of importing from
+  the root entry. The root entry re-exports PostgresEventTransport, which
+  uses await import('pg') for its Node-only DB driver. When a browser
+  bundler pre-bundles the root entry, it traverses the events module and
+  tries to resolve pg for the browser graph — which fails.
+
+  The new subpath lets browser code import auth helpers without dragging in
+  the events module at all. Strictly additive: the root entry is unchanged,
+  so every existing consumer continues to work.
+
+  Linked-group packages (@anby/contracts, @anby/manifest-schema, @anby/cli)
+  bump together per .changeset/config.json but contain no functional
+  changes in this release.
+
 ## 1.3.0
 
 ### Minor Changes
@@ -20,6 +48,7 @@
   ```
 
   Schema additions:
+
   - `frontend.pages[].patternProperties` extended with `^description_[a-z]{2}$` (max 300 chars per locale).
   - `ResolvedPage` interface gains `descriptions: Record<string, string>` populated from `description_xx` fields on both `pages[]` and legacy `routes[]`.
   - `resolveManifestPages()` extracts the per-locale descriptions into the new map.
@@ -45,8 +74,9 @@
   ```
 
   Schema additions:
+
   - `frontend.pages[].patternProperties: { "^label_[a-z]{2}$": { "type": "string" } }` — accepts any 2-letter ISO locale code as a `label_xx` field.
-  - `AppManifest.frontend.pages[]` TypeScript interface widened with an index signature `[key: \`label_${string}\`]?: string`.
+  - `AppManifest.frontend.pages[]` TypeScript interface widened with an index signature `[key: \`label\_${string}\`]?: string`.
   - `ResolvedPage` interface gains `labels: Record<string, string>` populated from `label_xx` fields on both `pages[]` and legacy `routes[]`.
   - `resolveManifestPages()` extracts the locale labels into the new `labels` map.
 
