@@ -13,3 +13,7 @@ packages/*/*.tsbuildinfo
 # Coverage
 coverage/
 .nyc_output/
+
+# This repo uses npm workspaces — guard against accidental pnpm-lock generation
+pnpm-lock.yaml
+packages/*/pnpm-lock.yaml
