@@ -30,6 +30,11 @@
       "import": "./dist/esm/index.js",
       "require": "./dist/cjs/index.js"
     },
+    "./tenant": {
+      "types": "./dist/cjs/tenant/index.d.ts",
+      "import": "./dist/esm/tenant/index.js",
+      "require": "./dist/cjs/tenant/index.js"
+    },
     "./auth": {
       "types": "./dist/cjs/auth/index.d.ts",
       "import": "./dist/esm/auth/index.js",
