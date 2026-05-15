@@ -1,6 +1,6 @@
 {
   "name": "@anby/platform-sdk",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Runtime SDK for building services and apps that plug into the Anby Platform — auth, events, config",
   "keywords": [
     "anby",
@@ -29,6 +29,11 @@
       "types": "./dist/cjs/index.d.ts",
       "import": "./dist/esm/index.js",
       "require": "./dist/cjs/index.js"
+    },
+    "./auth": {
+      "types": "./dist/cjs/auth/index.d.ts",
+      "import": "./dist/esm/auth/index.js",
+      "require": "./dist/cjs/auth/index.js"
     },
     "./vite": {
       "types": "./dist/cjs/vite/index.d.ts",

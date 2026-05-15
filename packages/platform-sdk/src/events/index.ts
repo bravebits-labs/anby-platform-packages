@@ -123,6 +123,8 @@ export async function publishEvent(
   await _transport.publish(envelope);
 }
 
+export { InMemoryTransport };
+
 /**
  * PostgresEventTransport writes events to the app_events DB table.
  * The Event Router service polls this table and routes events to consumers.
@@ -161,5 +163,3 @@ export class PostgresEventTransport implements EventTransport {
     }
   }
 }
-
-export { InMemoryTransport };

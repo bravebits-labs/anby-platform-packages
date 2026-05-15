@@ -6,6 +6,8 @@ export {
   signHmac,
   authenticateRequest,
   requireAuth,
+  isPlaceholderTenant,
+  INVALID_TENANT_PLACEHOLDERS,
   JWT_ISSUER,
   JWT_AUDIENCE,
   TYP_USER,
