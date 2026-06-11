@@ -3,12 +3,15 @@ import { signHmac } from '@anby/platform-sdk';
 import {
   BalanceResult,
   BillingConfig,
+  CheckoutResult,
   DebitRequest,
   DebitRequestSchema,
   DebitResult,
   RefundRequest,
   RefundRequestSchema,
   RefundResult,
+  SubscriptionCheckoutRequest,
+  TopupCheckoutRequest,
 } from './types.js';
 import {
   BillingConfigurationError,
@@ -17,6 +20,7 @@ import {
   DuplicateRequestError,
   InsufficientCreditsError,
   InvalidDebitRequestError,
+  PlanAlreadyActiveError,
   WalletLockedError,
   WorkspaceNotFoundError,
 } from './errors.js';
@@ -225,4 +229,89 @@ export async function refundCredits(request: RefundRequest): Promise<RefundResul
   });
 
   return (await parseOrThrow(res, req.workspaceId)) as RefundResult;
+}
+
+/**
+ * Parse a checkout response. Checkout endpoints have a different error contract
+ * than ledger endpoints: 409 is a business-state conflict (paid plan already
+ * active), not an idempotency replay, and 503 carries `product_not_configured`.
+ */
+async function parseCheckoutOrThrow(res: Response): Promise<CheckoutResult> {
+  const text = await res.text();
+  let body: { error?: string; message?: string; details?: unknown } | null = null;
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      // non-JSON body — treat as opaque service error
+    }
+  }
+
+  if (res.ok) return body as unknown as CheckoutResult;
+
+  const message = body?.message ?? body?.error ?? `billing-service returned ${res.status}`;
+
+  switch (res.status) {
+    case 400:
+      throw new InvalidDebitRequestError(message, body?.details);
+    case 409:
+      throw new PlanAlreadyActiveError(message, body?.details);
+    default:
+      // 503 product_not_configured and any other 5xx map to unavailable.
+      if (res.status >= 500) {
+        throw new BillingServiceUnavailableError(message, res.status, body?.details);
+      }
+      throw new BillingError('billing.unknown', message, res.status, body?.details);
+  }
+}
+
+/**
+ * Open a Polar checkout for a paid subscription (Pro / Business). The returned
+ * `checkoutUrl` is rendered by the in-app UpgradeDialog as an embedded checkout;
+ * `embedOrigin` is forwarded so Polar can postMessage back to the host app.
+ *
+ * @throws {PlanAlreadyActiveError} 409 — workspace already on a paid plan
+ * @throws {InvalidDebitRequestError} 400 — bad request (e.g. invalid returnUrl)
+ * @throws {BillingServiceUnavailableError} 503 product_not_configured / 5xx / network
+ * @throws {BillingConfigurationError} if SDK not configured
+ */
+export async function createSubscriptionCheckout(
+  req: SubscriptionCheckoutRequest,
+): Promise<CheckoutResult> {
+  const res = await signedFetch('/internal/billing/subscriptions/checkout', {
+    method: 'POST',
+    body: {
+      workspaceId: req.workspaceId,
+      planCode: req.planCode,
+      interval: req.interval,
+      returnUrl: req.returnUrl,
+      customerEmail: req.customerEmail,
+      embedOrigin: req.embedOrigin,
+    },
+  });
+  return parseCheckoutOrThrow(res);
+}
+
+/**
+ * Open a Polar checkout for a one-time AC top-up package (mini / plus / max).
+ * `embedOrigin` is forwarded for the in-app embedded checkout flow.
+ *
+ * @throws {InvalidDebitRequestError} 400 — unknown package or bad returnUrl
+ * @throws {BillingServiceUnavailableError} 503 product_not_configured / 5xx / network
+ * @throws {BillingConfigurationError} if SDK not configured
+ */
+export async function createTopupCheckout(
+  req: TopupCheckoutRequest,
+): Promise<CheckoutResult> {
+  const res = await signedFetch('/internal/billing/topups/checkout', {
+    method: 'POST',
+    body: {
+      workspaceId: req.workspaceId,
+      package: req.package,
+      returnUrl: req.returnUrl,
+      customerEmail: req.customerEmail,
+      embedOrigin: req.embedOrigin,
+    },
+  });
+  return parseCheckoutOrThrow(res);
 }

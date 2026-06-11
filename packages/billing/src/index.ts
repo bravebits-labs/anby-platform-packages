@@ -4,6 +4,8 @@ export {
   getBalance,
   refundCredits,
   deriveIdempotencyKey,
+  createSubscriptionCheckout,
+  createTopupCheckout,
   _resetBillingConfig,
 } from './client.js';
 
@@ -16,6 +18,9 @@ export type {
   BalanceResult,
   SourceService,
   BucketPrimary,
+  SubscriptionCheckoutRequest,
+  TopupCheckoutRequest,
+  CheckoutResult,
 } from './types.js';
 
 export { isWorkspaceId, workspaceIdSchema } from './types.js';
@@ -28,5 +33,6 @@ export {
   DuplicateRequestError,
   WorkspaceNotFoundError,
   WalletLockedError,
+  PlanAlreadyActiveError,
   BillingServiceUnavailableError,
 } from './errors.js';

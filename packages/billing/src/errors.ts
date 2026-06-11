@@ -80,6 +80,18 @@ export class WalletLockedError extends BillingError {
   }
 }
 
+/**
+ * HTTP 409 `paid_plan_already_active` — the workspace already has an active paid
+ * subscription, so a new subscription checkout cannot be opened. Distinct from
+ * DuplicateRequestError (idempotency replay) — this is a business-state conflict.
+ */
+export class PlanAlreadyActiveError extends BillingError {
+  constructor(message = 'Workspace already has an active paid plan', details?: unknown) {
+    super('billing.paid_plan_already_active', message, 409, details);
+    this.name = 'PlanAlreadyActiveError';
+  }
+}
+
 /** HTTP 5xx or network error — billing-service unreachable / errored. */
 export class BillingServiceUnavailableError extends BillingError {
   constructor(message: string, status = 503, details?: unknown) {

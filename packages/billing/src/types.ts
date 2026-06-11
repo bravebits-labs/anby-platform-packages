@@ -118,6 +118,40 @@ export interface BalanceResult {
   } | null;
 }
 
+/**
+ * Request to open a Polar checkout for a paid subscription (Pro / Business).
+ * `embedOrigin` is the origin of the in-app UpgradeDialog host — billing-service
+ * forwards it to Polar so the embedded checkout can postMessage back to the app.
+ */
+export interface SubscriptionCheckoutRequest {
+  workspaceId: string;
+  planCode: 'pro' | 'business';
+  /** Billing cadence — defaults to monthly server-side when omitted. */
+  interval?: 'monthly' | 'annual';
+  returnUrl: string;
+  customerEmail?: string;
+  embedOrigin?: string;
+}
+
+/**
+ * Request to open a Polar checkout for a one-time AC top-up package.
+ * `embedOrigin` carries the in-app UpgradeDialog host origin (see above).
+ */
+export interface TopupCheckoutRequest {
+  workspaceId: string;
+  package: 'mini' | 'plus' | 'max';
+  returnUrl: string;
+  customerEmail?: string;
+  embedOrigin?: string;
+}
+
+/** Result of opening a Polar checkout — the hosted/embedded checkout URL. */
+export interface CheckoutResult {
+  checkoutUrl: string;
+  checkoutId: string;
+  expiresAt?: string;
+}
+
 export interface BillingConfig {
   /** Base URL of anby-billing-service, e.g. https://billing.anby.ai */
   baseUrl: string;
