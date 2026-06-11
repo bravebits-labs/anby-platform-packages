@@ -3,6 +3,8 @@ import { configureAuth } from '@anby/platform-sdk';
 import {
   _resetBillingConfig,
   configureBilling,
+  createSubscriptionCheckout,
+  createTopupCheckout,
   debitCredits,
   deriveIdempotencyKey,
   getBalance,
@@ -15,6 +17,7 @@ import {
   DuplicateRequestError,
   InsufficientCreditsError,
   InvalidDebitRequestError,
+  PlanAlreadyActiveError,
   WalletLockedError,
   WorkspaceNotFoundError,
 } from './errors.js';
@@ -286,6 +289,196 @@ describe('billing SDK', () => {
   describe('configuration guard', () => {
     it('throws BillingConfigurationError when SDK not configured', async () => {
       await expect(getBalance(WS)).rejects.toBeInstanceOf(BillingConfigurationError);
+    });
+  });
+
+  describe('createSubscriptionCheckout', () => {
+    function captureFetchOk(body: unknown) {
+      const calls: Array<{ url: string; init: RequestInit }> = [];
+      const impl = vi.fn(async (url: string, init: RequestInit) => {
+        calls.push({ url, init });
+        return { ok: true, status: 200, text: async () => JSON.stringify(body) };
+      }) as unknown as typeof fetch;
+      return { impl, calls };
+    }
+
+    const RETURN_URL = 'https://meet.anby.ai/billing/return';
+
+    it('posts signed request with planCode/interval/embedOrigin and returns checkoutUrl', async () => {
+      const { impl, calls } = captureFetchOk({
+        checkoutUrl: 'https://polar.sh/c/sub',
+        checkoutId: 'co_sub',
+        expiresAt: '2026-06-12T00:00:00.000Z',
+      });
+      configureBilling({
+        baseUrl: BASE_URL,
+        hmacSecret: HMAC_SECRET,
+        serviceName: 'meeting',
+        fetch: impl,
+      });
+
+      const r = await createSubscriptionCheckout({
+        workspaceId: WS,
+        planCode: 'pro',
+        interval: 'monthly',
+        returnUrl: RETURN_URL,
+        customerEmail: 'user@anby.ai',
+        embedOrigin: 'https://meet.anby.ai',
+      });
+
+      expect(r.checkoutUrl).toBe('https://polar.sh/c/sub');
+      expect(r.checkoutId).toBe('co_sub');
+      expect(calls).toHaveLength(1);
+      const call = calls[0]!;
+      expect(call.url).toBe('https://billing.test/internal/billing/subscriptions/checkout');
+      const headers = call.init.headers as Record<string, string>;
+      expect(headers['x-internal-signature']).toMatch(/^[a-f0-9]{64}$/);
+      const body = JSON.parse(call.init.body as string);
+      expect(body).toMatchObject({
+        workspaceId: WS,
+        planCode: 'pro',
+        interval: 'monthly',
+        returnUrl: RETURN_URL,
+        customerEmail: 'user@anby.ai',
+        embedOrigin: 'https://meet.anby.ai',
+      });
+    });
+
+    it('maps 409 paid_plan_already_active to PlanAlreadyActiveError', async () => {
+      configureBilling({
+        baseUrl: BASE_URL,
+        hmacSecret: HMAC_SECRET,
+        serviceName: 'meeting',
+        fetch: mockFetch({ status: 409, body: { error: 'paid_plan_already_active' } }),
+      });
+      await expect(
+        createSubscriptionCheckout({
+          workspaceId: WS,
+          planCode: 'pro',
+          interval: 'monthly',
+          returnUrl: RETURN_URL,
+        }),
+      ).rejects.toBeInstanceOf(PlanAlreadyActiveError);
+    });
+
+    it('maps 503 product_not_configured to BillingServiceUnavailableError', async () => {
+      configureBilling({
+        baseUrl: BASE_URL,
+        hmacSecret: HMAC_SECRET,
+        serviceName: 'meeting',
+        fetch: mockFetch({ status: 503, body: { error: 'product_not_configured' } }),
+      });
+      await expect(
+        createSubscriptionCheckout({ workspaceId: WS, planCode: 'business', returnUrl: RETURN_URL }),
+      ).rejects.toBeInstanceOf(BillingServiceUnavailableError);
+    });
+
+    it('maps 500 product_not_configured to BillingServiceUnavailableError', async () => {
+      configureBilling({
+        baseUrl: BASE_URL,
+        hmacSecret: HMAC_SECRET,
+        serviceName: 'meeting',
+        fetch: mockFetch({ status: 500, body: { error: 'product_not_configured' } }),
+      });
+      await expect(
+        createSubscriptionCheckout({ workspaceId: WS, planCode: 'business', returnUrl: RETURN_URL }),
+      ).rejects.toBeInstanceOf(BillingServiceUnavailableError);
+    });
+
+    it('throws BillingServiceUnavailableError on 200 missing checkoutUrl', async () => {
+      configureBilling({
+        baseUrl: BASE_URL,
+        hmacSecret: HMAC_SECRET,
+        serviceName: 'meeting',
+        fetch: mockFetch({ status: 200, body: {} }),
+      });
+      await expect(
+        createSubscriptionCheckout({ workspaceId: WS, planCode: 'pro', returnUrl: RETURN_URL }),
+      ).rejects.toBeInstanceOf(BillingServiceUnavailableError);
+    });
+
+    it('maps 400 bad request to InvalidDebitRequestError', async () => {
+      configureBilling({
+        baseUrl: BASE_URL,
+        hmacSecret: HMAC_SECRET,
+        serviceName: 'meeting',
+        fetch: mockFetch({ status: 400, body: { error: 'bad_request' } }),
+      });
+      await expect(
+        createSubscriptionCheckout({ workspaceId: WS, planCode: 'pro', returnUrl: RETURN_URL }),
+      ).rejects.toBeInstanceOf(InvalidDebitRequestError);
+    });
+  });
+
+  describe('createTopupCheckout', () => {
+    function captureFetchOk(body: unknown) {
+      const calls: Array<{ url: string; init: RequestInit }> = [];
+      const impl = vi.fn(async (url: string, init: RequestInit) => {
+        calls.push({ url, init });
+        return { ok: true, status: 200, text: async () => JSON.stringify(body) };
+      }) as unknown as typeof fetch;
+      return { impl, calls };
+    }
+
+    const RETURN_URL = 'https://meet.anby.ai/billing/return';
+
+    it('posts signed request and returns checkoutUrl', async () => {
+      const { impl, calls } = captureFetchOk({
+        checkoutUrl: 'https://polar.sh/c/x',
+        checkoutId: 'co_1',
+        expiresAt: '2026-06-12T00:00:00.000Z',
+        package: 'plus',
+        acAmount: 500,
+      });
+      configureBilling({
+        baseUrl: BASE_URL,
+        hmacSecret: HMAC_SECRET,
+        serviceName: 'meeting',
+        fetch: impl,
+      });
+
+      const r = await createTopupCheckout({
+        workspaceId: WS,
+        package: 'plus',
+        returnUrl: RETURN_URL,
+        embedOrigin: 'https://meet.anby.ai',
+      });
+
+      expect(r.checkoutUrl).toBe('https://polar.sh/c/x');
+      expect(calls).toHaveLength(1);
+      const call = calls[0]!;
+      expect(call.url).toBe('https://billing.test/internal/billing/topups/checkout');
+      const body = JSON.parse(call.init.body as string);
+      expect(body).toMatchObject({
+        workspaceId: WS,
+        package: 'plus',
+        returnUrl: RETURN_URL,
+        embedOrigin: 'https://meet.anby.ai',
+      });
+    });
+
+    it('maps 400 unknown package to InvalidDebitRequestError', async () => {
+      configureBilling({
+        baseUrl: BASE_URL,
+        hmacSecret: HMAC_SECRET,
+        serviceName: 'meeting',
+        fetch: mockFetch({ status: 400, body: { error: 'unknown_package' } }),
+      });
+      await expect(
+        createTopupCheckout({ workspaceId: WS, package: 'mini', returnUrl: RETURN_URL }),
+      ).rejects.toBeInstanceOf(InvalidDebitRequestError);
+    });
+
+    it('maps 503 product_not_configured to BillingServiceUnavailableError', async () => {
+      configureBilling({
+        baseUrl: BASE_URL,
+        hmacSecret: HMAC_SECRET,
+        serviceName: 'meeting',
+        fetch: mockFetch({ status: 503, body: { error: 'product_not_configured' } }),
+      });
+      await expect(
+        createTopupCheckout({ workspaceId: WS, package: 'max', returnUrl: RETURN_URL }),
+      ).rejects.toBeInstanceOf(BillingServiceUnavailableError);
     });
   });
 
