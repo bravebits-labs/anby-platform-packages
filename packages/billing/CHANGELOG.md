@@ -1,5 +1,11 @@
 # @anby/billing
 
+## 1.1.0
+
+### Minor Changes
+
+- 5eb5232: Add `createSubscriptionCheckout` and `createTopupCheckout` client functions for Polar checkout (pricing v2 plans pro/business + top-up packages mini/plus/max), with `PlanAlreadyActiveError` typed 409 mapping and `embedOrigin` passthrough for embedded checkout.
+
 ## 1.0.1
 
 ### Patch Changes
