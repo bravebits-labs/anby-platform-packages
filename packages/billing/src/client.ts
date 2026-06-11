@@ -247,7 +247,19 @@ async function parseCheckoutOrThrow(res: Response): Promise<CheckoutResult> {
     }
   }
 
-  if (res.ok) return body as unknown as CheckoutResult;
+  if (res.ok) {
+    const result = body as { checkoutUrl?: unknown } | null;
+    // A 200 without a usable checkoutUrl would render a blank embedded iframe at
+    // the consumer — treat it as an upstream failure rather than a valid result.
+    if (!result || typeof result.checkoutUrl !== 'string' || result.checkoutUrl.length === 0) {
+      throw new BillingServiceUnavailableError(
+        'billing-service returned 200 without a checkoutUrl',
+        res.status,
+        body?.details,
+      );
+    }
+    return result as unknown as CheckoutResult;
+  }
 
   const message = body?.message ?? body?.error ?? `billing-service returned ${res.status}`;
 

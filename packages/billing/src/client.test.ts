@@ -373,6 +373,30 @@ describe('billing SDK', () => {
       ).rejects.toBeInstanceOf(BillingServiceUnavailableError);
     });
 
+    it('maps 500 product_not_configured to BillingServiceUnavailableError', async () => {
+      configureBilling({
+        baseUrl: BASE_URL,
+        hmacSecret: HMAC_SECRET,
+        serviceName: 'meeting',
+        fetch: mockFetch({ status: 500, body: { error: 'product_not_configured' } }),
+      });
+      await expect(
+        createSubscriptionCheckout({ workspaceId: WS, planCode: 'business', returnUrl: RETURN_URL }),
+      ).rejects.toBeInstanceOf(BillingServiceUnavailableError);
+    });
+
+    it('throws BillingServiceUnavailableError on 200 missing checkoutUrl', async () => {
+      configureBilling({
+        baseUrl: BASE_URL,
+        hmacSecret: HMAC_SECRET,
+        serviceName: 'meeting',
+        fetch: mockFetch({ status: 200, body: {} }),
+      });
+      await expect(
+        createSubscriptionCheckout({ workspaceId: WS, planCode: 'pro', returnUrl: RETURN_URL }),
+      ).rejects.toBeInstanceOf(BillingServiceUnavailableError);
+    });
+
     it('maps 400 bad request to InvalidDebitRequestError', async () => {
       configureBilling({
         baseUrl: BASE_URL,
